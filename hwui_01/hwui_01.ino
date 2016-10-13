@@ -11,7 +11,11 @@
   get ID via Pitchbend Midi Msg, Value = ID
 *******************************************************************************/
 #include "MIDIUSB.h"
+#include <ClickEncoder.h>
 
+
+#define ENC_HALFSTEP
+#define ENC_DECODER (1 << 2)
 
 uint32_t cur_tick = 0;
 uint32_t prev_tick = 0;
@@ -35,9 +39,13 @@ uint8_t  usb_midi_msg_cnt = 0;
 
 #define BTN_DEAD_TIME 100
 
-#define _ID 0x02
+#define _ID 0x01
 
 
+
+ClickEncoder *encoder;
+int16_t enc_last_val = -1;
+int16_t enc_value = 0;
 
 
 typedef struct {
@@ -51,20 +59,10 @@ btn_t ba[12] = {};
 
 
 uint16_t distance_val = 0;
-uint8_t serial_flag = 0;
 
-String inputString = "";         // a string to hold incoming data
-boolean stringComplete = false;  // whether the string is complete
 
 void setup()
 {
-  Serial.begin(115200);
-
-  // reserve 200 bytes for the inputString:
-  inputString.reserve(8);
-
-  pinMode(13, OUTPUT);
-
   ba[0].hw_pin  = BTN_01;
   ba[1].hw_pin  = BTN_02;
   ba[2].hw_pin  = BTN_03;
@@ -81,7 +79,8 @@ void setup()
   ba[10].hw_pin = ARCADE_TOP;
   ba[11].hw_pin = ARCADE_BOT;
 
-
+  encoder = new ClickEncoder(3, 2, -1, 4);
+  encoder->setAccelerationEnabled(true);
 
   for ( uint8_t cnt = 0; cnt < 12; cnt++ )
   {
@@ -131,27 +130,6 @@ void buttons_debounce(void)
 }
 
 
-uint16_t b_cnt = 0;
-uint8_t tgl = 0;
-void led_blink(void)
-{
-  b_cnt++;
-  if (b_cnt > 75)
-  {
-    if ( tgl )
-    {
-      digitalWrite(13, HIGH);
-      tgl = 0;
-    }
-    else
-    {
-      digitalWrite(13, LOW);
-      tgl = 1;
-    }
-    b_cnt = 0;
-  }
-}
-
 
 uint8_t d_cnt = 0;
 
@@ -192,15 +170,31 @@ void usb_midi_read()
 
 
 
+void enc_check_changes(void)
+{
+  enc_value += encoder->getValue();
+  
+  if (enc_value != enc_last_val) 
+  {
+    int16_t diff = enc_value - enc_last_val;
+    uint8_t send_val = diff + 64;
+    
+    enc_last_val = enc_value;
+    
+    midiEventPacket_t event = {0x0B, 0xB0, 5, send_val};
+    MidiUSB.sendMIDI(event);
+    usb_midi_msg_cnt++;
+  }
+}
+
+
 void loop()
 {
   cur_tick = millis();
 
-  //Atmega32U4
-  if (Serial.available()) serialEvent();
-
   if ( cur_tick != prev_tick )
   {
+    encoder->service();
     sched_cnt++;
 
     switch ( sched_cnt )
@@ -218,31 +212,26 @@ void loop()
       case 3:
         {
           //read_distance();
-          led_blink();
+          enc_check_changes();
           break;
         }
       case 4:
         {
           usb_midi_read();
-          //Serial.println("alive");
           break;
         }
-      case 5:
+      case 10:
         {
           //Serial.println("i");
           if ( usb_midi_msg_cnt > 0 )
           {
             MidiUSB.flush();
           }
-          if ( stringComplete )
-          {
-            Serial.println(_ID);
-            // clear the string:
-            inputString = "";
-            stringComplete = false;
-          }
           sched_cnt = 0;
+          break;
         }
+        default:
+          break;
     }
   }
   prev_tick = cur_tick;
@@ -250,13 +239,4 @@ void loop()
 
 
 
-void serialEvent() {
-  while (Serial.available()) {
-    char inChar = (char)Serial.read();
-    inputString += inChar;
-    //if (inChar == '\n') {
-    stringComplete = true;
-    //}
-  }
-}
 
