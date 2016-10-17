@@ -1,29 +1,24 @@
 /******************************************************************************/
 /** @file   hwui_01
-    @date   2016-10-13
+    @date   2016-10-14
     @author dan@stekgreif.com
     @brief  mosaik mvier 10 hwui
             - 1 encoder
             - 10 buttons
             - 2 arcade buttons
             - 1 distance sensor
-
-  get ID via Pitchbend Midi Msg, Value = ID
 *******************************************************************************/
 #include "MIDIUSB.h"
 #include <ClickEncoder.h>
+
+#define _ID  0x03
+#define _HWUITYPE 0x01
 
 
 #define ENC_HALFSTEP
 #define ENC_DECODER (1 << 2)
 
-uint32_t cur_tick = 0;
-uint32_t prev_tick = 0;
-uint8_t  sched_cnt  = 0;
-uint8_t  usb_midi_msg_cnt = 0;
-
-
-// actual button pin mapping
+// button pin mapping
 #define ARCADE_TOP 4
 #define ARCADE_BOT 5
 #define BTN_01  A4
@@ -37,16 +32,7 @@ uint8_t  usb_midi_msg_cnt = 0;
 #define BTN_09  9
 #define BTN_10  10
 
-#define BTN_DEAD_TIME 100
-
-#define _ID 0x01
-
-
-
-ClickEncoder *encoder;
-int16_t enc_last_val = -1;
-int16_t enc_value = 0;
-
+#define BTN_DEAD_TIME 25
 
 typedef struct {
   uint8_t   hw_pin;
@@ -54,8 +40,21 @@ typedef struct {
   uint8_t   cur_state;
   uint8_t   prev_state;
 } btn_t;
-
 btn_t ba[12] = {};
+
+uint32_t cur_tick = 0;
+uint32_t prev_tick = 0;
+uint8_t  sched_cnt  = 0;
+uint8_t  usb_midi_msg_cnt = 0;
+
+
+ClickEncoder *encoder;
+int16_t enc_last_val = -1;
+int16_t enc_value = 0;
+
+
+
+
 
 
 uint16_t distance_val = 0;
@@ -150,18 +149,18 @@ void read_distance(void)
 
 
 
+
 void usb_midi_read()
 {
   midiEventPacket_t rx;
-
-
   rx = MidiUSB.read();
 
-  if (rx.header == 0xE) // MIDI SYSTEM
+  if (rx.header == 0x0A) // hwui identifier message
   {
     if ( rx.byte2 == _ID)
     {
-      midiEventPacket_t event = {0x0E, 0xE0, 0, _ID};
+      midiEventPacket_t event = {0x0A, 0xA0, _ID, _HWUITYPE};
+      //midiEventPacket_t event = {rx.header, rx.byte1, rx.byte2, rx.byte3}; // midi echo
       MidiUSB.sendMIDI(event);
       usb_midi_msg_cnt++;
     }
