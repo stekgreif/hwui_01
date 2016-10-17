@@ -1,6 +1,6 @@
 /******************************************************************************/
 /** @file   hwui_01
-    @date   2016-10-14
+    @date   2016-10-17
     @author dan@stekgreif.com
     @brief  mosaik mvier 10 hwui
             - 1 encoder
@@ -12,7 +12,6 @@
 #include <ClickEncoder.h>
 
 #define _ID  0x03
-#define _HWUITYPE 0x01
 
 
 #define ENC_HALFSTEP
@@ -51,11 +50,6 @@ uint8_t  usb_midi_msg_cnt = 0;
 ClickEncoder *encoder;
 int16_t enc_last_val = -1;
 int16_t enc_value = 0;
-
-
-
-
-
 
 uint16_t distance_val = 0;
 
@@ -149,18 +143,16 @@ void read_distance(void)
 
 
 
-
 void usb_midi_read()
 {
   midiEventPacket_t rx;
   rx = MidiUSB.read();
 
-  if (rx.header == 0x0A) // hwui identifier message
+  if (rx.header == 0x0A)  // system message
   {
-    if ( rx.byte2 == _ID)
+    if ( rx.byte2 == 0x01)  // hwui identifier message
     {
-      midiEventPacket_t event = {0x0A, 0xA0, _ID, _HWUITYPE};
-      //midiEventPacket_t event = {rx.header, rx.byte1, rx.byte2, rx.byte3}; // midi echo
+      midiEventPacket_t event = {0x0A, 0xA0, 0, _ID};
       MidiUSB.sendMIDI(event);
       usb_midi_msg_cnt++;
     }
@@ -185,6 +177,7 @@ void enc_check_changes(void)
     usb_midi_msg_cnt++;
   }
 }
+
 
 
 void loop()
@@ -221,7 +214,6 @@ void loop()
         }
       case 10:
         {
-          //Serial.println("i");
           if ( usb_midi_msg_cnt > 0 )
           {
             MidiUSB.flush();
